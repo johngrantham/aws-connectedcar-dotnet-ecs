@@ -1,0 +1,351 @@
+openapi: "3.0.1"
+info:
+  title: "ConnectedCar_Customer_API"
+  version: "1.0"
+x-amazon-apigateway-request-validators:
+  all:
+    validateRequestBody: true
+    validateRequestParameters: true 
+x-amazon-apigateway-request-validator: all
+paths:
+  /customer/profile:
+    patch: 
+      operationId: update-customer
+      summary: Update an individual customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerPatch'
+      responses:
+        '200':
+          description: Item updated
+        '400':
+          description: Invalid input
+      security:
+      - CognitoAuthorizer:
+        - aws.cognito.signin.user.admin
+        - openid
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "PATCH"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/customer/profile
+    get:
+      operationId: get-customer
+      summary: Get an individual customer by auth username
+      responses:
+        '200':
+          description: An individual customer by auth username
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          description: Invalid input              
+      security:
+      - CognitoAuthorizer:
+        - aws.cognito.signin.user.admin
+        - openid
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/customer/profile
+  /customer/appointments:
+    post:
+      operationId: create-appointment
+      summary: Create a new appointment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Appointment' 
+      responses:
+        '201':
+          description: Item created
+        '400':
+          description: Invalid input              
+      security:
+      - CognitoAuthorizer:
+        - aws.cognito.signin.user.admin
+        - openid
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "POST"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/customer/appointments
+  /customer/appointments/{appointmentId}:
+    get:
+      operationId: get-appointment
+      summary: Returns an individual appointment by appointmentId
+      parameters:
+      - name: "appointmentId"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/Guid' 
+      responses:
+        '200':
+          description: An individual appointment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          description: Invalid input              
+      security:
+      - CognitoAuthorizer:
+        - aws.cognito.signin.user.admin
+        - openid
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.appointmentId: "method.request.path.appointmentId"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/customer/appointments/{appointmentId}
+    delete:
+      operationId: delete-appointment
+      summary: Deletes an individual appointment by appointmentId
+      parameters:
+      - name: "appointmentId"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/Guid' 
+      responses:
+        '200':
+          description: Item deleted
+        '400':
+          description: Invalid input              
+      security:
+      - CognitoAuthorizer:
+        - aws.cognito.signin.user.admin
+        - openid
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "DELETE"
+        requestParameters:
+          integration.request.path.appointmentId: "method.request.path.appointmentId"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/customer/appointments/{appointmentId}
+  /customer/registrations:
+    get:
+      operationId: get-registrations
+      summary: Returns a list of vehicle registrations by auth username
+      responses:
+        '200':
+          description: A list of registrations for a customer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Registrations'
+        '400':
+          description: Invalid input              
+      security:
+      - CognitoAuthorizer:
+        - aws.cognito.signin.user.admin
+        - openid
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/customer/registrations
+  /customer/registrations/{vin}/appointments:
+    get:
+      operationId: get-vehicle-appointments
+      summary: Returns a list of vehicle appointments by vin and auth username
+      parameters:
+      - name: "vin"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/AlphaNumeric' 
+      responses:
+        '200':
+          description: A list of appointments by vehicle vin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointments'
+        '400':
+          description: Invalid input              
+      security:
+      - CognitoAuthorizer:
+        - aws.cognito.signin.user.admin
+        - openid
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.vin: "method.request.path.vin"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/customer/registrations/{vin}/appointments
+  /customer/vehicles/{vin}:
+    get:
+      operationId: get-vehicle
+      summary: Returns an individual vehicle by vin
+      parameters:
+      - name: "vin"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/AlphaNumeric' 
+      responses:
+        '200':
+          description: An individual vehicle by vin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '400':
+          description: Invalid input              
+      security:
+      - CognitoAuthorizer:
+        - aws.cognito.signin.user.admin
+        - openid
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.vin: "method.request.path.vin"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/customer/vehicles/{vin}
+  /customer/vehicles/{vin}/events:
+    get:
+      operationId: get-events
+      summary: Returns a list of vehicle events by vin
+      parameters:
+      - name: "vin"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/AlphaNumeric' 
+      responses:
+        '200':
+          description: A list of events for a vehicle vin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Events'
+        '400':
+          description: Invalid input              
+      security:
+      - CognitoAuthorizer:
+        - aws.cognito.signin.user.admin
+        - openid
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.vin: "method.request.path.vin"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/customer/vehicles/{vin}/events
+  /customer/dealers:
+    get: 
+      operationId: get-dealers
+      summary: Returns a list of dealers by stateCode
+      parameters:
+      - name: "stateCode"
+        in: "query"
+        required: true
+        schema:
+          $ref: '#/components/schemas/StateCode' 
+      responses:
+        '200':
+          description: A list of dealers by stateCode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dealers'
+        '400':
+          description: Invalid input              
+      security:
+      - CognitoAuthorizer:
+        - aws.cognito.signin.user.admin
+        - openid
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/customer/dealers
+  /customer/dealers/{dealerId}/timeslots:
+    get:
+      operationId: get-timeslots
+      summary: Returns a list of timeslots by dealerId
+      parameters:
+      - name: "dealerId"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/Guid' 
+      responses:
+        '200':
+          description: A list of timeslots for a dealer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Timeslots'
+        '400':
+          description: Invalid input              
+      security:
+      - CognitoAuthorizer:
+        - aws.cognito.signin.user.admin
+        - openid
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.dealerId: "method.request.path.dealerId"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/customer/dealers/{dealerId}/timeslots
+components:
+  securitySchemes:
+    CognitoAuthorizer:
+      type: "apiKey"
+      name: "Authorization"
+      in: "header"
+      scopes:
+      - aws.cognito.signin.user.admin
+      - openid
+      x-amazon-apigateway-authtype: "cognito_user_pools"
+      x-amazon-apigateway-authorizer:
+        type: "cognito_user_pools"
+        providerARNs:
+        - Fn::Sub: ${UserPoolArn}

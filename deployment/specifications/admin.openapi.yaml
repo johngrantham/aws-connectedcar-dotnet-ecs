@@ -1,0 +1,512 @@
+openapi: "3.0.1"
+info:
+  title: "ConnectedCar_Admin_API"
+  version: "1.0"
+x-amazon-apigateway-request-validators:
+  all:
+    validateRequestBody: true
+    validateRequestParameters: true 
+x-amazon-apigateway-request-validator: all
+paths:
+  /admin/dealers:
+    post:
+      operationId: create-dealer
+      summary: Creates a new dealer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Dealer' 
+      responses:
+        '201':
+          description: Item created
+        '400':
+          description: Invalid input                
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "POST"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/dealers
+    get:
+      operationId: get-dealers
+      summary: Returns a list of dealers by stateCode    
+      parameters:
+      - name: "stateCode"
+        in: "query"
+        required: true
+        schema:
+          $ref: '#/components/schemas/StateCode' 
+      responses:
+        '200':
+          description: A list of dealers by stateCode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dealers'
+        '400':
+          description: Invalid input              
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/dealers
+  /admin/dealers/{dealerId}:
+    get:
+      operationId: get-dealer
+      summary: Returns an individual dealer by dealerId
+      parameters:
+      - name: "dealerId"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/Guid' 
+      responses:
+        '200':
+          description: An individual dealer by dealerId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dealer'
+        '400':
+          description: Invalid input              
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.dealerId: "method.request.path.dealerId"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/dealers/{dealerId}
+  /admin/dealers/{dealerId}/timeslots:
+    post:
+      operationId: create-timeslot
+      summary: Creates a new timeslot
+      parameters:
+      - name: "dealerId"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/Guid' 
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Timeslot' 
+      responses:
+        '201':
+          description: Item created
+        '400':
+          description: Invalid input              
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "POST"
+        requestParameters:
+          integration.request.path.dealerId: "method.request.path.dealerId"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/dealers/{dealerId}/timeslots
+    get:
+      operationId: get-timeslots
+      summary: Returns a list of timeslots by dealerId
+      parameters:
+      - name: "dealerId"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/Guid' 
+      - name: "startDate"
+        in: "query"
+        required: true
+        schema:
+          $ref: '#/components/schemas/Date' 
+      - name: "endDate"
+        in: "query"
+        required: true
+        schema:
+          $ref: '#/components/schemas/Date' 
+      responses:
+        '200':
+          description: A list of timeslots for a dealer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Timeslots'
+        '400':
+          description: Invalid input              
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.dealerId: "method.request.path.dealerId"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/dealers/{dealerId}/timeslots
+  /admin/dealers/{dealerId}/timeslots/{serviceDateHour}:
+    get:
+      operationId: get-timeslot
+      summary: Returns an individual timeslot by dealerId and serviceDateHour
+      parameters:
+      - name: "dealerId"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/Guid' 
+      - name: "serviceDateHour"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/ServiceDateHour' 
+      responses:
+        '200':
+          description: An individual timeslot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Timeslot'
+        '400':
+          description: Invalid input              
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.dealerId: "method.request.path.dealerId"
+          integration.request.path.serviceDateHour: "method.request.path.serviceDateHour"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/dealers/{dealerId}/timeslots/{serviceDateHour}
+  /admin/customers:
+    post:
+      operationId: create-customer
+      summary: Creates a new customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerProvision' 
+      responses:
+        '201':
+          description: Item created
+        '400':
+          description: Invalid input     
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "POST"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/customers
+    get: 
+      operationId: get-customers
+      summary: Returns a list of customers by lastname
+      parameters:
+      - name: "lastname"
+        in: "query"
+        schema:
+          $ref: '#/components/schemas/Text' 
+      responses:
+        '200':
+          description: A list of customers by lastname
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customers'
+        '400':
+          description: Invalid input              
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/customers
+  /admin/customers/{username}:
+    get: 
+      operationId: get-customer
+      summary: Returns an individual customer by username
+      parameters:
+      - name: "username"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/AlphaNumeric' 
+      responses:
+        '200':
+          description: An individual customer by username
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          description: Invalid input              
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.username: "method.request.path.username"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/customers/{username}
+  /admin/customers/{username}/registrations:
+    post:
+      operationId: create-registration
+      summary: Creates a new vehicle registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Registration' 
+      responses:
+        '201':
+          description: Item created
+        '400':
+          description: Invalid input   
+      parameters:
+      - name: "username"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/AlphaNumeric' 
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "POST"
+        requestParameters:
+          integration.request.path.username: "method.request.path.username"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/customers/{username}/registrations
+    patch: 
+      operationId: update-registration
+      summary: Updates a vehicle registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrationPatch'
+      responses:
+        '200':
+          description: Item updated
+        '400':
+          description: Invalid input              
+      parameters:
+      - name: "username"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/AlphaNumeric' 
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "PATCH"
+        requestParameters:
+          integration.request.path.username: "method.request.path.username"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/customers/{username}/registrations
+    get: 
+      operationId: get-customer-registrations
+      summary: Returns a list of vehicle registrations by username
+      parameters:
+      - name: "username"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/AlphaNumeric' 
+      responses:
+        '200':
+          description: A list of vehicle registrations for a customer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Registrations'
+        '400':
+          description: Invalid input              
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.username: "method.request.path.username"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/customers/{username}/registrations
+  /admin/customers/{username}/registrations/{vin}:
+    get: 
+      operationId: get-registration
+      summary: Returns an individual vehicle registration by username and vin
+      parameters:
+      - name: "username"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/AlphaNumeric' 
+      - name: "vin"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/AlphaNumeric' 
+      responses:
+        '200':
+          description: An individual registration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Registration'
+        '400':
+          description: Invalid input              
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.username: "method.request.path.username"
+          integration.request.path.vin: "method.request.path.vin"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/customers/{username}/registrations/{vin}
+  /admin/vehicles:
+    post:
+      operationId: create-vehicle
+      summary: Creates a new vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Vehicle' 
+      responses:
+        '201':
+          description: Item created
+        '400':
+          description: Invalid input              
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "POST"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/vehicles
+  /admin/vehicles/{vin}:
+    get: 
+      operationId: get-vehicle
+      summary: Returns an individual vehicle by vin
+      parameters:
+      - name: "vin"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/AlphaNumeric' 
+      responses:
+        '200':
+          description: An individual vehicle by vin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '400':
+          description: Invalid input              
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.vin: "method.request.path.vin"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/vehicles/{vin}
+  /admin/vehicles/{vin}/registrations:
+    get: 
+      operationId: get-vehicle-registrations
+      summary: Returns a list of vehicle registrations by vin
+      parameters:
+      - name: "vin"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/AlphaNumeric' 
+      responses:
+        '200':
+          description: A list of registrations for a vehicle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Registrations'
+        '400':
+          description: Invalid input              
+      security:
+      - api_key: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.vin: "method.request.path.vin"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/admin/vehicles/{vin}/registrations
+components:
+  securitySchemes:
+    api_key:
+      type: "apiKey"
+      name: "x-api-key"
+      in: "header"

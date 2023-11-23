@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'CloudFormation template for the IAM, Cognito and DynamoDB service resources.'
+Parameters:
+  ServiceName:
+    Type: String
+    Description: 'Specifies the name of the service e.g. ConnectedCar.'
+    Default: ConnectedCar
+  EnvironmentName:
+    Type: String
+    Default: Dev
+    AllowedValues:
+      - Dev
+      - Test
+      - Prod
+    Description: 'Specifies the name of the environment (Dev,Test,Prod).'
+  ServicesPolicyArn:
+    Type: String
+    Description: 'Specifies the ARN of the services policy'
+Resources:
+  LoggingPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy for allowing log writes
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*'
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Ref LoggingPolicy
+        - !Ref ServicesPolicyArn
+        - 'arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy'
+      RoleName: !Sub '${ServiceName}LambdaExecutionRole${EnvironmentName}'
+    DependsOn:
+      - LoggingPolicy
+  LambdaInvocationPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy for allowing API Gateway to invoke lambdas
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'lambda:InvokeFunction'
+            Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:*'
+  LambdaInvocationRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - 'apigateway.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Ref LambdaInvocationPolicy
+        - 'arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy'
+      RoleName: !Sub '${ServiceName}LambdaInvocationRole${EnvironmentName}'
+    DependsOn:
+      - LambdaInvocationPolicy
+  ContainerExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - 'ecs-tasks.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Ref ServicesPolicyArn
+      RoleName: !Sub '${ServiceName}ContainerExecutionRole${EnvironmentName}'
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: 
+              - 'ecs-tasks.amazonaws.com'
+          Action:
+            - 'sts:AssumeRole'
+      Path: /
+      RoleName: !Sub '${ServiceName}TaskExecutionRole${EnvironmentName}'
+      Policies:
+        - PolicyName: AmazonECSTaskExecutionRolePolicy
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                - 'ecr:GetAuthorizationToken'
+                - 'ecr:BatchCheckLayerAvailability'
+                - 'ecr:GetDownloadUrlForLayer'
+                - 'ecr:BatchGetImage'
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: '*'
+  AutoScaleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: 
+              - 'application-autoscaling.amazonaws.com'
+          Action:
+            - 'sts:AssumeRole'
+      Path: /
+      RoleName: !Sub '${ServiceName}ServiceAutoScaleRole${EnvironmentName}'
+      Policies:
+      - PolicyName: ecs-service
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+              - 'ecs:DescribeServices'
+              - 'ecs:UpdateService'
+              - 'cloudwatch:DescribeAlarms'
+            Resource: '*'
+Outputs:
+  LambdaExecutionRoleArn:
+    Description: 'The Lambda execution role ARN'
+    Value: !GetAtt 
+      - LambdaExecutionRole
+      - Arn
+  LambdaInvocationRoleArn:
+    Description: 'The Lambda invocation role ARN'
+    Value: !GetAtt 
+      - LambdaInvocationRole
+      - Arn
+  ContainerExecutionRoleArn:
+    Description: 'The container execution role ARN'
+    Value: !GetAtt 
+      - ContainerExecutionRole
+      - Arn
+  TaskExecutionRoleArn:
+    Description: 'The ECS task execution role ARN'
+    Value: !GetAtt 
+      - TaskExecutionRole
+      - Arn
+  AutoScaleRoleArn:
+    Description: 'The autoscale role ARN'
+    Value: !GetAtt 
+      - AutoScaleRole
+      - Arn

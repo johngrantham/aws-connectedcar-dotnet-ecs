@@ -1,0 +1,286 @@
+  schemas:
+    Guid:
+      type: string
+      format: uuid
+    Text:
+      type: string
+      pattern: '^[a-zA-Z0-9 _.-]*$'
+      maxLength: 50
+    AlphaNumeric:
+      type: string
+      pattern: '^[a-zA-Z0-9]*$'
+      maxLength: 50
+    Password:
+      type: string
+      maxLength: 50
+    PhoneNumber:
+      type: string
+      pattern: '^(1-)?\d{3}-\d{3}-\d{4}$'
+    PinNumber:
+      type: string
+      pattern: '^\d{6}$'
+    Date:
+      type: string
+      format: date
+    DateTime:
+      type: string
+      format: date-time
+    ServiceDateHour:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}-\d{2}$'
+    ServiceBayCount:
+      type: integer
+      format: int32
+    Timestamp:
+      type: integer
+      format: int64
+    StateCode:
+      type: string
+      enum: [AL,AK,AZ,AR,AA,AE,AP,CA,CO,CT,DE,DC,FL,GA,HI,ID,IL,IN,IA,KS,KY,LA,ME,MD,MA,MI,MN,MS,MO,MT,NE,NV,NH,NJ,NM,NY,NC,ND,OH,OK,OR,PA,RI,SC,SD,TN,TX,UT,VT,VA,WA,WV,WI,WY,AB,BC,MB,NB,NL,NT,NS,NU,ON,PE,QC,SK,YT]
+    StatusCode:
+      type: string
+      enum: [Active,Inactive]
+    EventCode:
+      type: string
+      enum: [Info,Service,Fault]
+    VehicleCode:
+      type: string
+      enum: [Normal,Turbo]
+    Address:
+      type: object
+      required:
+        - streetAddress
+        - city
+        - state
+        - zipCode
+      properties:
+        streetAddress:
+          $ref: '#/components/schemas/Text'
+        city:
+          $ref: '#/components/schemas/Text'
+        state:
+          $ref: '#/components/schemas/Text'
+        zipCode:
+          $ref: '#/components/schemas/Text'
+    Colors:
+      type: object
+      required:
+        - exterior
+        - interior
+      properties:
+        exterior:
+          $ref: '#/components/schemas/Text'
+        interior:
+          $ref: '#/components/schemas/Text'
+    RegistrationKey:
+      type: object
+      required:
+        - username
+        - vin
+      properties:
+        username:
+          $ref: '#/components/schemas/AlphaNumeric'
+        vin:
+          $ref: '#/components/schemas/AlphaNumeric'
+    TimeslotKey:
+      type: object
+      required:
+        - dealerId
+        - serviceDateHour
+      properties:
+        dealerId:
+          $ref: '#/components/schemas/Guid'
+        serviceDateHour:
+          $ref: '#/components/schemas/ServiceDateHour'
+    Dealer:
+      type: object
+      required:
+        - name
+        - address
+        - stateCode
+      properties:
+        dealerId:
+          $ref: '#/components/schemas/Guid'
+        name:
+          $ref: '#/components/schemas/Text'
+        address:
+          $ref: '#/components/schemas/Address'
+        stateCode:
+          $ref: '#/components/schemas/StateCode'
+        createDateTime:
+          $ref: '#/components/schemas/DateTime'
+        updateDateTime:
+          $ref: '#/components/schemas/DateTime'
+    Dealers:
+      type: array
+      items:
+        $ref: '#/components/schemas/Dealer'      
+    Timeslot:
+      type: object
+      required:
+        - dealerId
+        - serviceDateHour
+        - serviceBayCount
+      properties:
+        dealerId:
+          $ref: '#/components/schemas/Guid'
+        serviceDateHour:
+          $ref: '#/components/schemas/ServiceDateHour'
+        serviceBayCount:
+          $ref: '#/components/schemas/ServiceBayCount'
+        createDateTime:
+          $ref: '#/components/schemas/DateTime'
+        updateDateTime:
+          $ref: '#/components/schemas/DateTime'
+    Timeslots:
+      type: array
+      items:
+        $ref: '#/components/schemas/Timeslot'
+    Appointment:
+      type: object
+      required:
+        - timeslotKey
+        - registrationKey
+      properties:
+        appointmentId:
+          $ref: '#/components/schemas/Guid'
+        timeslotKey:
+          $ref: '#/components/schemas/TimeslotKey'
+        registrationKey:
+          $ref: '#/components/schemas/RegistrationKey'
+        createDateTime:
+          $ref: '#/components/schemas/DateTime'
+        updateDateTime:
+          $ref: '#/components/schemas/DateTime'
+    Appointments:
+      type: array
+      items:
+        $ref: '#/components/schemas/Appointment'      
+    Customer:
+      type: object
+      required:
+        - username
+        - firstname
+        - lastname
+        - phoneNumber
+      properties:
+        username:
+          $ref: '#/components/schemas/AlphaNumeric'
+        firstname:
+          $ref: '#/components/schemas/Text'
+        lastname:
+          $ref: '#/components/schemas/Text'
+        phoneNumber:
+          $ref: '#/components/schemas/PhoneNumber'
+        createDateTime:
+          $ref: '#/components/schemas/DateTime'
+        updateDateTime:
+          $ref: '#/components/schemas/DateTime'
+    Customers:
+      type: array
+      items:
+        $ref: '#/components/schemas/Customer'      
+    CustomerPatch:
+      type: object
+      required:
+        - username
+        - phoneNumber
+      properties:
+        username:
+          $ref: '#/components/schemas/AlphaNumeric'
+        phoneNumber:
+          $ref: '#/components/schemas/PhoneNumber'
+    CustomerProvision:
+      type: object
+      required:
+        - username
+        - password
+        - firstname
+        - lastname
+        - phoneNumber
+      properties:
+        username:
+          $ref: '#/components/schemas/AlphaNumeric'
+        Password:
+          $ref: '#/components/schemas/Password'
+        firstname:
+          $ref: '#/components/schemas/Text'
+        lastname:
+          $ref: '#/components/schemas/Text'
+        phoneNumber:
+          $ref: '#/components/schemas/PhoneNumber'
+    Registration:
+      type: object
+      required:
+        - username
+        - vin
+        - statusCode
+      properties:
+        username:
+          $ref: '#/components/schemas/AlphaNumeric'
+        vin:
+          $ref: '#/components/schemas/AlphaNumeric'
+        statusCode:
+          $ref: '#/components/schemas/StatusCode'
+        createDateTime:
+          $ref: '#/components/schemas/DateTime'
+        updateDateTime:
+          $ref: '#/components/schemas/DateTime'
+    Registrations:
+      type: array
+      items:
+        $ref: '#/components/schemas/Registration'
+    RegistrationPatch:
+      type: object
+      required:
+        - username
+        - vin
+        - statusCode
+      properties:
+        username:
+          $ref: '#/components/schemas/AlphaNumeric'
+        vin:
+          $ref: '#/components/schemas/AlphaNumeric'
+        statusCode:
+          $ref: '#/components/schemas/StatusCode'
+    Vehicle:
+      type: object
+      required:
+        - vin
+        - colors
+        - vehiclePin
+        - vehicleCode
+      properties:
+        vin:
+          $ref: '#/components/schemas/AlphaNumeric'
+        colors:
+          $ref: '#/components/schemas/Colors'
+        vehiclePin:
+          $ref: '#/components/schemas/PinNumber'
+        vehicleCode:
+          $ref: '#/components/schemas/VehicleCode'   
+        createDateTime:
+          $ref: '#/components/schemas/DateTime'
+        updateDateTime:
+          $ref: '#/components/schemas/DateTime'
+    Vehicles:
+      type: array
+      items:
+        $ref: '#/components/schemas/Vehicle'
+    Event:
+      type: object
+      required:
+        - vin
+        - timestamp
+        - eventCode
+      properties:
+        vin:
+          $ref: '#/components/schemas/AlphaNumeric'
+        timestamp:
+          $ref: '#/components/schemas/Timestamp'   
+        eventCode:
+          $ref: '#/components/schemas/EventCode'   
+    Events:
+      type: array
+      items:
+        $ref: '#/components/schemas/Event'   

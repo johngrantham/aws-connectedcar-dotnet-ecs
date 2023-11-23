@@ -1,0 +1,165 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: 'AWS::Serverless-2016-10-31'
+Description: 'CloudFormation template for the APIs and Lambda authorizer.'
+Parameters:
+  BucketName:
+    Type: String
+    Description: 'Specifies the name of the S3 bucket where code is deployed.'
+  ServiceName:
+    Type: String
+    Description: 'Specifies the name of the service e.g. ConnectedCar.'
+    Default: ConnectedCar
+  EnvironmentName:
+    Type: String
+    Default: Dev
+    AllowedValues:
+      - Dev
+      - Test
+      - Prod
+    Description: 'Specifies the name of the environment (Dev,Test,Prod).'
+  VersionNumber:
+    Type: String
+    Default: 1.0.0
+    Description: 'Specifies the version number of the deployed jar files.'
+  StageName:
+    Type: String
+    Default: api
+    Description: 'Specifies the stage name e.g. api.'
+  UserPoolArn:
+    Type: String
+    Description: 'Specifies the ARN of the cognito user pool.'
+  UserPoolId:
+    Type: String
+    Description: 'Specifies the Cognito ID for the user pool'
+  UserQueueArn:
+    Type: String
+    Description: 'Specifies the ARN of the SQS user queue.'
+  NetworkLoadBalancerDns:
+    Type: String
+    Description: 'Specifies the DNS of the Network Load Balancer'
+  VPCLink:
+    Type: String
+    Description: 'Specifies the ID of the VPC Link'
+  LambdaExecutionRoleArn:
+    Type: String
+    Description: 'Specifies the ARN of the lambda execution role.'
+  LambdaInvocationRoleArn:
+    Type: String
+    Description: 'Specifies the ARN of the lambda invocation role.'
+Globals:
+  Function:
+    Runtime: dotnet6
+    CodeUri:
+      Bucket: !Ref BucketName
+      Key: !Sub '${ServiceName}/${EnvironmentName}/Lambda-${VersionNumber}.zip'
+    Layers:
+      - !Sub 'arn:aws:lambda:${AWS::Region}:580247275435:layer:LambdaInsightsExtension:18'
+    MemorySize: 4096
+    Timeout: 30
+    Tracing: Active
+    Environment:
+      Variables:
+        DealerTableName: !Sub '${ServiceName}_Dealer_Table_${EnvironmentName}'
+        TimeslotTableName: !Sub '${ServiceName}_Timeslot_Table_${EnvironmentName}'
+        AppointmentTableName: !Sub '${ServiceName}_Appointment_Table_${EnvironmentName}'
+        RegistrationTableName: !Sub '${ServiceName}_Registration_Table_${EnvironmentName}'
+        CustomerTableName: !Sub '${ServiceName}_Customer_Table_${EnvironmentName}'
+        VehicleTableName: !Sub '${ServiceName}_Vehicle_Table_${EnvironmentName}'
+        EventTableName: !Sub '${ServiceName}_Event_Table_${EnvironmentName}'
+        UserPoolId: !Ref UserPoolId
+Conditions:
+  IsDevelopment: !Equals [ !Ref EnvironmentName, Dev]
+Resources:
+  VehicleAuthorizerFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: !Sub '${ServiceName}_Vehicle_Authorizer_${EnvironmentName}'
+      Handler: ConnectedCar.Lambda::ConnectedCar.Lambda.VehicleAuthorizer::Authorize
+      Description: Function to authorize in-car API requests
+      Role: !Ref LambdaExecutionRoleArn
+      AutoPublishAlias: !Ref StageName
+  CreateUserFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: !Sub '${ServiceName}_CreateUser_${EnvironmentName}'
+      Handler: ConnectedCar.Lambda::ConnectedCar.Lambda.CreateUserEventHandler::HandleEvent
+      Description: Function to read SQS messages for creating users in Cognito
+      Role: !Ref LambdaExecutionRoleArn
+      AutoPublishAlias: !Ref StageName
+  LambdaFunctionEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      Enabled: true
+      EventSourceArn: !Ref UserQueueArn
+      FunctionName: !Ref CreateUserFunction      
+  AdminAPI:
+    Type: 'AWS::Serverless::Api'
+    Properties:
+      Name: !Sub '${ServiceName}_Admin_API_${EnvironmentName}'
+      StageName: !Ref StageName
+      EndpointConfiguration: REGIONAL
+      Auth: 
+        UsagePlan:
+          CreateUsagePlan: PER_API
+          UsagePlanName: !Sub '${ServiceName}_Admin_API_UsagePlan_${EnvironmentName}'
+        ApiKeyRequired: true      
+      DefinitionBody:
+        'Fn::Transform':
+          Name: AWS::Include
+          Parameters:
+            Location: !Sub 's3://${BucketName}/${ServiceName}/${EnvironmentName}/admin.openapi.yaml'
+      MethodSettings:
+        - LoggingLevel: INFO
+          DataTraceEnabled: !If [ IsDevelopment, true, false ]
+          MetricsEnabled: true
+          HttpMethod: '*'
+          ResourcePath: '/*'
+      TracingEnabled: true
+  CustomerAPI:
+    Type: 'AWS::Serverless::Api'
+    Properties:
+      Name: !Sub '${ServiceName}_Customer_API_${EnvironmentName}'
+      StageName: !Ref StageName
+      EndpointConfiguration: REGIONAL
+      DefinitionBody:
+        'Fn::Transform':
+          Name: AWS::Include
+          Parameters:
+            Location: !Sub 's3://${BucketName}/${ServiceName}/${EnvironmentName}/customer.openapi.yaml'
+      MethodSettings:
+        - LoggingLevel: INFO
+          DataTraceEnabled: !If [ IsDevelopment, true, false ]
+          MetricsEnabled: true
+          HttpMethod: '*'
+          ResourcePath: '/*'
+      TracingEnabled: true
+  VehicleAPI:
+    Type: 'AWS::Serverless::Api'
+    Properties:
+      Name: !Sub '${ServiceName}_Vehicle_API_${EnvironmentName}'
+      StageName: !Ref StageName
+      EndpointConfiguration: REGIONAL
+      DefinitionBody:
+        'Fn::Transform':
+          Name: AWS::Include
+          Parameters:
+            Location: !Sub 's3://${BucketName}/${ServiceName}/${EnvironmentName}/vehicle.openapi.yaml'
+      MethodSettings:
+        - LoggingLevel: INFO
+          DataTraceEnabled: !If [ IsDevelopment, true, false ]
+          MetricsEnabled: true
+          HttpMethod: '*'
+          ResourcePath: '/*'
+      TracingEnabled: true
+Outputs:
+  AdminAPI:
+    Description: 'The Admin API ID'
+    Value: !Ref AdminAPI
+  CustomerAPI:
+    Description: 'The Customer API ID'
+    Value: !Ref CustomerAPI
+  VehicleAPI:
+    Description: 'The Vehicle API ID'
+    Value: !Ref VehicleAPI
+

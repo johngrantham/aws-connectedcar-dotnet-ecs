@@ -1,0 +1,279 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'CloudFormation template for network resources.'
+Parameters:
+  ServiceName:
+    Type: String
+    Description: 'Specifies the name of the service e.g. ConnectedCar.'
+    Default: ConnectedCar
+  EnvironmentName:
+    Type: String
+    Default: Dev
+    AllowedValues:
+      - Dev
+      - Test
+      - Prod
+    Description: 'Specifies the name of the environment (Dev,Test,Prod).'
+Resources:
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags: 
+        - Key: Name
+          Value: !Sub '${ServiceName}_VPC_${EnvironmentName}'
+  PrivateRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${ServiceName}_PrivateRouteTable_${EnvironmentName}'
+  SubnetLoadBalancerA:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.0.0/24
+      Tags: 
+        - Key: Name
+          Value: !Sub '${ServiceName}_SubnetLoadBalancerA_${EnvironmentName}'
+  SubnetLoadBalancerB:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      Tags: 
+        - Key: Name
+          Value: !Sub '${ServiceName}_SubnetLoadBalancerB_${EnvironmentName}'
+  SubnetContainersA:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      Tags: 
+        - Key: Name
+          Value: !Sub '${ServiceName}_SubnetContainersA_${EnvironmentName}'
+  SubnetContainersB:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.3.0/24
+      Tags: 
+        - Key: Name
+          Value: !Sub '${ServiceName}_SubnetContainersB_${EnvironmentName}'
+  SubnetLoadBalancerANetworkAclAssociation:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties: 
+      NetworkAclId: !GetAtt 
+        - VPC
+        - DefaultNetworkAcl
+      SubnetId: !Ref SubnetLoadBalancerA
+  SubnetLoadBalancerBNetworkAclAssociation:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties: 
+      NetworkAclId: !GetAtt 
+        - VPC
+        - DefaultNetworkAcl
+      SubnetId: !Ref SubnetLoadBalancerB
+  SubnetContainersANetworkAclAssociation:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties: 
+      NetworkAclId: !GetAtt 
+        - VPC
+        - DefaultNetworkAcl
+      SubnetId: !Ref SubnetContainersA
+  SubnetContainersBNetworkAclAssociation:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties: 
+      NetworkAclId: !GetAtt 
+        - VPC
+        - DefaultNetworkAcl
+      SubnetId: !Ref SubnetContainersB
+  SubnetContainersARouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref SubnetContainersA
+  SubnetContainersBRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref SubnetContainersB
+  EndpointSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: "VPC Endpoint Security Group"
+      GroupDescription: "all in, all out"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      Tags: 
+        - Key: Name
+          Value: !Sub '${ServiceName}_EndpointSecurityGroup_${EnvironmentName}'
+  ContainerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: "ECS Task Security Group"
+      GroupDescription: "Port 5000 in, all out"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      Tags: 
+        - Key: Name
+          Value: !Sub '${ServiceName}_ContainerSecurityGroup_${EnvironmentName}'
+  EcrApiEndpoint:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties: 
+      PrivateDnsEnabled: true
+      SecurityGroupIds: 
+        - !Ref EndpointSecurityGroup
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.api'
+      SubnetIds: 
+        - !Ref SubnetContainersA
+        - !Ref SubnetContainersB
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+  EcrDkrEndpoint:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties: 
+      PrivateDnsEnabled: true
+      SecurityGroupIds: 
+        - !Ref EndpointSecurityGroup
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.dkr'
+      SubnetIds: 
+        - !Ref SubnetContainersA
+        - !Ref SubnetContainersB
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+  LogsEndpoint:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties: 
+      PrivateDnsEnabled: true
+      SecurityGroupIds: 
+        - !Ref EndpointSecurityGroup
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.logs'
+      SubnetIds: 
+        - !Ref SubnetContainersA
+        - !Ref SubnetContainersB
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+  SQSEndpoint:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties: 
+      PrivateDnsEnabled: true
+      SecurityGroupIds: 
+        - !Ref EndpointSecurityGroup
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.sqs'
+      SubnetIds: 
+        - !Ref SubnetContainersA
+        - !Ref SubnetContainersB
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+  S3Endpoint:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties: 
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcEndpointType: Gateway
+      VpcId: !Ref VPC
+  DynamoDbEndpoint:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties: 
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.dynamodb'
+      VpcEndpointType: Gateway
+      VpcId: !Ref VPC
+  NetworkLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Name: !Sub '${ServiceName}LoadBalancer${EnvironmentName}'
+      Scheme: internal
+      Subnets:
+        - !Ref SubnetLoadBalancerA
+        - !Ref SubnetLoadBalancerB
+      Type: network
+  NetworkLoadBalancerTargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Name: !Sub '${ServiceName}TargetGroup${EnvironmentName}'
+      Port: 5000
+      Protocol: TCP
+      VpcId: !Ref VPC
+      HealthCheckPath: '/admin/dealers?stateCode=AZ'
+      HealthCheckProtocol: HTTP
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 60
+      TargetType: ip
+  NetworkLoadBalancerListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref NetworkLoadBalancerTargetGroup
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: 80
+      Protocol: TCP
+  VPCLink:
+    Type: 'AWS::ApiGateway::VpcLink'
+    Properties: 
+      Name: !Sub '${ServiceName}_VPCLink_${EnvironmentName}'
+      TargetArns: 
+        - !Ref NetworkLoadBalancer
+Outputs:
+  SubnetContainersA:
+    Description: 'The ID of the subnet for AZ A into which containers will be deployed'
+    Value: !Ref SubnetContainersA
+  SubnetContainersB:
+    Description: 'The ID of the subnet for AZ B into which containers will be deployed'
+    Value: !Ref SubnetContainersB
+  ContainerSecurityGroup:
+    Description: 'The ID of the security group attached to the container ENIs'
+    Value: !Ref ContainerSecurityGroup
+  NetworkLoadBalancerDns:
+    Description: 'The DNS of the Network Load Balancer'
+    Value: !GetAtt 
+      - NetworkLoadBalancer
+      - DNSName
+  NetworkLoadBalancerTargetGroup:
+    Description: 'The ARN of the Network Load Balancer Target Group'
+    Value: !Ref NetworkLoadBalancerTargetGroup
+  VPCLink:
+    Description: 'The ID of the VPC Link'
+    Value: !Ref VPCLink 

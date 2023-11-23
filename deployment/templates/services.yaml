@@ -1,0 +1,283 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'CloudFormation template for the IAM, Cognito and DynamoDB service resources.'
+Parameters:
+  ServiceName:
+    Type: String
+    Description: 'Specifies the name of the service e.g. ConnectedCar.'
+    Default: ConnectedCar
+  EnvironmentName:
+    Type: String
+    Default: Dev
+    AllowedValues:
+      - Dev
+      - Test
+      - Prod
+    Description: 'Specifies the name of the environment (Dev,Test,Prod).'
+  UserPoolDomainName:
+    Type: String
+    Default: connectedcar
+    Description: 'Domain prefix for the Cognito user pool.'
+Conditions:
+  IsDevelopment: !Equals [ !Ref EnvironmentName, Dev]
+Resources:
+  UserPool:
+    Type: 'AWS::Cognito::UserPool'
+    Properties:
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: admin_only
+            Priority: 1
+      UserPoolName: !Sub '${ServiceName}_UserPool_${EnvironmentName}'
+  UserPoolClient:
+    Type: 'AWS::Cognito::UserPoolClient'
+    Properties:
+      AccessTokenValidity: !If [ IsDevelopment, 300, 30 ]
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - openid
+      CallbackURLs:
+        - 'https://oauth.pstmn.io/v1/callback'
+      ClientName: !Sub '${ServiceName}_UserPoolClient_${EnvironmentName}'
+      ExplicitAuthFlows:
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH 
+        - ALLOW_REFRESH_TOKEN_AUTH
+      GenerateSecret: true
+      IdTokenValidity: 30
+      RefreshTokenValidity: 300
+      SupportedIdentityProviders:
+        - COGNITO
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: minutes
+      UserPoolId: !Ref UserPool
+  UserPoolDomain:
+    Type: 'AWS::Cognito::UserPoolDomain'
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Ref UserPoolDomainName
+  DealerTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: !Sub '${ServiceName}_Dealer_Table_${EnvironmentName}'
+      AttributeDefinitions:
+        - AttributeName: dealerId
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: dealerId
+          KeyType: HASH
+  TimeslotTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: !Sub '${ServiceName}_Timeslot_Table_${EnvironmentName}'
+      AttributeDefinitions:
+        - AttributeName: dealerId
+          AttributeType: S
+        - AttributeName: serviceDateHour
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: dealerId
+          KeyType: HASH
+        - AttributeName: serviceDateHour
+          KeyType: RANGE
+  AppointmentTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: !Sub '${ServiceName}_Appointment_Table_${EnvironmentName}'
+      AttributeDefinitions:
+        - AttributeName: appointmentId
+          AttributeType: S
+        - AttributeName: timeslotKey
+          AttributeType: S
+        - AttributeName: registrationKey
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: appointmentId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: TimeslotAppointmentIndex
+          KeySchema:
+            - AttributeName: timeslotKey
+              KeyType: HASH
+            - AttributeName: appointmentId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: RegistrationAppointmentIndex
+          KeySchema:
+            - AttributeName: registrationKey
+              KeyType: HASH
+            - AttributeName: appointmentId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+  RegistrationTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: !Sub '${ServiceName}_Registration_Table_${EnvironmentName}'
+      AttributeDefinitions:
+        - AttributeName: username
+          AttributeType: S
+        - AttributeName: vin
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: username
+          KeyType: HASH
+        - AttributeName: vin
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: VehicleRegistrationIndex
+          KeySchema:
+            - AttributeName: vin
+              KeyType: HASH
+            - AttributeName: username
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+  CustomerTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: !Sub '${ServiceName}_Customer_Table_${EnvironmentName}'
+      AttributeDefinitions:
+        - AttributeName: username
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: username
+          KeyType: HASH
+  VehicleTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: !Sub '${ServiceName}_Vehicle_Table_${EnvironmentName}'
+      AttributeDefinitions:
+        - AttributeName: vin
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: vin
+          KeyType: HASH
+  EventTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: !Sub '${ServiceName}_Event_Table_${EnvironmentName}'
+      AttributeDefinitions:
+        - AttributeName: vin
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: 'N'
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: vin
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+  UserQueue: 
+    Type: 'AWS::SQS::Queue'
+    Properties: 
+      QueueName: !Sub '${ServiceName}_UserQueue_${EnvironmentName}'
+  ServicesPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy for accessing solution services
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'cognito-idp:AdminCreateUser'
+              - 'cognito-idp:AdminDeleteUser'
+              - 'cognito-idp:AdminEnableUser'
+              - 'cognito-idp:AdminDisableUser'
+              - 'cognito-idp:AdminUpdateUserAttributes'
+              - 'cognito-idp:AdminGetUser'
+            Resource:
+              - !GetAtt 
+                - UserPool
+                - Arn
+          - Effect: Allow
+            Action:
+              - 'dynamodb:DescribeTable'
+              - 'dynamodb:Get*'
+              - 'dynamodb:Query'
+              - 'dynamodb:Scan'
+              - 'dynamodb:BatchWrite*'
+              - 'dynamodb:Delete*'
+              - 'dynamodb:Update*'
+              - 'dynamodb:PutItem'
+            Resource:
+              - !GetAtt 
+                - DealerTable
+                - Arn
+              - !GetAtt 
+                - TimeslotTable
+                - Arn
+              - !GetAtt 
+                - AppointmentTable
+                - Arn
+              - !GetAtt 
+                - RegistrationTable
+                - Arn
+              - !GetAtt 
+                - CustomerTable
+                - Arn
+              - !GetAtt 
+                - VehicleTable
+                - Arn
+              - !GetAtt 
+                - EventTable
+                - Arn
+              - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ServiceName}_Appointment_Table_${EnvironmentName}/index/*'
+              - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ServiceName}_Registration_Table_${EnvironmentName}/index/*'
+          - Effect: Allow
+            Action:
+              - 'sqs:SendMessage'
+              - 'sqs:ReceiveMessage'
+              - 'sqs:DeleteMessage'
+              - 'sqs:GetQueueAttributes'
+              - 'sqs:ChangeMessageVisibility'
+            Resource:
+              - !GetAtt 
+                - UserQueue
+                - Arn
+    DependsOn:
+      - UserPool
+      - DealerTable
+      - TimeslotTable
+      - AppointmentTable
+      - RegistrationTable
+      - CustomerTable
+      - VehicleTable
+      - EventTable
+      - UserQueue
+Outputs:
+  UserPoolArn:
+    Description: 'The Cognito User Pool ARN'
+    Value: !GetAtt 
+      - UserPool
+      - Arn
+  UserPoolId:
+    Description: 'The Cognito User Pool ID'
+    Value: !Ref UserPool
+  UserClientId:
+    Description: 'The Cognito App Client ID'
+    Value: !Ref UserPoolClient
+  UserQueueArn:
+    Description: 'The SQS user queue ARN'
+    Value: !GetAtt 
+      - UserQueue
+      - Arn
+  UserQueueUrl:
+    Description: 'The SQS user queue URL'
+    Value: !Ref UserQueue
+  ServicesPolicyArn:
+    Description: 'The services policy ARN'
+    Value: !Ref ServicesPolicy

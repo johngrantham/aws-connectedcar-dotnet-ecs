@@ -1,0 +1,332 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'CloudFormation template for code repository and build pipeline.'
+Parameters:
+  BucketName:
+    Type: String
+    Description: 'Specifies the name of the S3 bucket from which code is deployed.'
+  ServiceName:
+    Type: String
+    Description: 'Specifies the name of the service e.g. ConnectedCar.'
+    Default: ConnectedCar
+  ServiceNameLower:
+    Type: String
+    Description: 'Specifies the name of the service e.g. ConnectedCar in lowercase.'
+    Default: connectedcar
+  EnvironmentName:
+    Type: String
+    Default: Dev
+    AllowedValues:
+      - Dev
+      - Test
+      - Prod
+    Description: 'Specifies the name of the environment (Dev,Test,Prod).'
+  EnvironmentNameLower:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: 'Specifies the name of the environment (dev,test,prod) in lowercase.'
+  StageName:
+    Type: String
+    Default: api
+    Description: 'Specifies the stage name e.g. api.'
+  UserPoolDomainName:
+    Type: String
+    Default: connectedcar
+    Description: 'Domain prefix for the Cognito user pool.'
+  BuildFile:
+    Type: String
+    Description: 'Specifies the name of the buildspec file for the build stage.'
+  TestFile:
+    Type: String
+    Description: 'Specifies the name of the buildspec file for the test stage.'
+  DeployFile:
+    Type: String
+    Description: 'Specifies the name of the master template file for the deploy stage.'
+  RepoOwner:
+    Type: String
+    Description: 'Specifies the account owner for the GitHub repositories.'
+  SourceRepoName:
+    Type: String
+    Description: 'Specifies the name for the GitHub source repository.'
+  SourceRepoBranch:
+    Type: String
+    Default: main
+    Description: 'Specifies the branch name for the GitHub source repository.'
+  CommonRepoName:
+    Type: String
+    Description: 'Specifies the name for the GitHub common repository.'
+  CommonRepoBranch:
+    Type: String
+    Default: main
+    Description: 'Specifies the branch name for the GitHub common repository.'
+Resources:
+  BuildPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy code build projects
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'codebuild:*'
+              - 'logs:*'
+              - 's3:*'
+              - 'cloudformation:*'
+              - 'apigateway:*'
+              - 'cognito-idp:*'
+              - 'ecr:*'
+              - 'secretsmanager:*'
+            Resource: '*'
+  BuildServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Ref BuildPolicy
+      RoleName: !Sub '${ServiceName}_CodeBuild_ServiceRole_${EnvironmentName}'
+  PipelinePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy code build projects
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPassRole
+            Effect: Allow
+            Action:
+              - 'codebuild:*'
+              - 'cloudformation:*'
+              - 's3:*'
+              - 'iam:PassRole'
+            Resource: '*'
+  PipelineServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Ref PipelinePolicy
+      RoleName: !Sub '${ServiceName}_CodePipeline_ServiceRole_${EnvironmentName}'
+  CloudFormationPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy code build projects
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPassRole
+            Effect: Allow
+            Action:
+              - 'cloudformation:*'
+              - 's3:*'
+              - 'dynamodb:*'
+              - 'cognito-idp:*'
+              - 'iam:*'
+              - 'ec2:*'
+              - 'elasticloadbalancing:*'
+              - 'apigateway:*'
+              - 'lambda:*'
+              - 'sqs:*'
+              - 'ecs:*'
+              - 'ecr:*'
+              - 'cloudwatch:*'
+              - 'application-autoscaling:*'
+              - 'logs:*'
+            Resource: '*'
+  CloudFormationServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Ref CloudFormationPolicy
+      RoleName: !Sub '${ServiceName}_CloudFormation_ServiceRole_${EnvironmentName}'
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${ServiceName}_BuildProject_${EnvironmentName}'
+      Description: 'CodeBuild build project for the solution'
+      ServiceRole: !Ref BuildServiceRole
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:6.0
+        EnvironmentVariables:
+          - Name: BUCKET
+            Type: PLAINTEXT
+            Value: !Ref BucketName
+          - Name: SERVICE
+            Type: PLAINTEXT
+            Value: !Ref ServiceName
+          - Name: SERVICE_LOWER
+            Type: PLAINTEXT
+            Value: !Ref ServiceNameLower
+          - Name: ENVIRONMENT
+            Type: PLAINTEXT
+            Value: !Ref EnvironmentName
+          - Name: ENVIRONMENT_LOWER
+            Type: PLAINTEXT
+            Value: !Ref EnvironmentNameLower
+        PrivilegedMode: true
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Ref BuildFile
+  TestProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${ServiceName}_TestProject_${EnvironmentName}'
+      Description: 'CodeBuild test project for the solution'
+      ServiceRole: !Ref BuildServiceRole
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:4.0
+        EnvironmentVariables:
+          - Name: BUCKET
+            Type: PLAINTEXT
+            Value: !Ref BucketName
+          - Name: SERVICE
+            Type: PLAINTEXT
+            Value: !Ref ServiceName
+          - Name: ENVIRONMENT
+            Type: PLAINTEXT
+            Value: !Ref EnvironmentName
+          - Name: STAGE
+            Type: PLAINTEXT
+            Value: !Ref StageName
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Ref TestFile
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub '${ServiceName}_Pipeline_${EnvironmentName}'
+      ArtifactStore:
+        Type: S3
+        Location: !Ref BucketName
+      RoleArn: !GetAtt 
+        - PipelineServiceRole
+        - Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              OutputArtifacts:
+                - Name: SourceArtifact
+              Configuration:
+                OAuthToken: '{{resolve:secretsmanager:personal-access-token:SecretString:token}}'
+                Owner: !Ref RepoOwner
+                Repo: !Ref SourceRepoName
+                Branch: !Ref SourceRepoBranch
+                PollForSourceChanges: false
+              RunOrder: 1
+            - Name: CommonAction
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              OutputArtifacts:
+                - Name: CommonArtifact
+              Configuration:
+                OAuthToken: '{{resolve:secretsmanager:personal-access-token:SecretString:token}}'
+                Owner: !Ref RepoOwner
+                Repo: !Ref CommonRepoName
+                Branch: !Ref CommonRepoBranch
+                PollForSourceChanges: false
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: SourceArtifact
+              OutputArtifacts:
+                - Name: BuildArtifact
+              Configuration:
+                BatchEnabled: false
+                ProjectName: !Ref BuildProject
+              RunOrder: 1  
+              Namespace: BuildVariables
+        - Name: Deploy
+          Actions:
+            - Name: DeployAction
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: CloudFormation
+              InputArtifacts:
+                - Name: SourceArtifact
+              OutputArtifacts:
+                - Name: DeployArtifact
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+                ParameterOverrides: !Sub '{"BucketName": "${BucketName}","ServiceName": "${ServiceName}","ServiceNameLower": "${ServiceNameLower}","EnvironmentName": "${EnvironmentName}","EnvironmentNameLower": "${EnvironmentNameLower}","VersionNumber": "#{BuildVariables.VERSION_NUMBER}","StageName": "${StageName}","UserPoolDomainName": "${UserPoolDomainName}"}'
+                RoleArn: !GetAtt 
+                  - CloudFormationServiceRole
+                  - Arn
+                StackName: !Sub '${ServiceName}${EnvironmentName}'
+                TemplatePath: !Sub 'SourceArtifact::${DeployFile}'
+              RunOrder: 1  
+              Namespace: DeployVariables
+        - Name: Test
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Test
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: CommonArtifact
+              OutputArtifacts:
+                - Name: TestArtifact
+              Configuration:
+                BatchEnabled: false
+                ProjectName: !Ref TestProject
+              RunOrder: 1  
+              Namespace: TestVariables

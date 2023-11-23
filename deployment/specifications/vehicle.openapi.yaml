@@ -1,0 +1,103 @@
+openapi: "3.0.1"
+info:
+  title: "ConnectedCar_Vehicle_API"
+  version: "1.0"
+x-amazon-apigateway-request-validators:
+  all:
+    validateRequestBody: true
+    validateRequestParameters: true 
+x-amazon-apigateway-request-validator: all
+paths:
+  /vehicle/events:
+    post:
+      operationId: create-event
+      summary: Creates a new vehicle event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event' 
+      responses:
+        '201':
+          description: Item created
+        '400':
+          description: Invalid input              
+      security:
+      - VehicleAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "POST"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/vehicle/events
+    get:
+      operationId: get-events
+      summary: Returns a list of vehicle events by auth vin
+      responses:
+        '200':
+          description: A list of events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Events'
+        '400':
+          description: Invalid input              
+      security:
+      - VehicleAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/vehicle/events
+  /vehicle/events/{timestamp}:
+    get:
+      operationId: get-event
+      summary: Returns an individual vehicle event by timestamp and auth vin
+      parameters:
+      - name: "timestamp"
+        in: "path"
+        required: true
+        schema:
+          $ref: '#/components/schemas/Timestamp' 
+      responses:
+        '200':
+          description: An individual event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Invalid input              
+      security:
+      - VehicleAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: "http_proxy"
+        connectionType: "VPC_LINK"
+        connectionId: 
+          Fn::Sub: ${VPCLink}
+        httpMethod: "GET"
+        requestParameters:
+          integration.request.path.timestamp: "method.request.path.timestamp"
+        uri: 
+          Fn::Sub: http://${NetworkLoadBalancerDns}/vehicle/events/{timestamp}
+components:
+  securitySchemes:
+    VehicleAuthorizer:
+      type: "apiKey"
+      name: "Authorization"
+      in: "header"
+      x-amazon-apigateway-authtype: "custom"
+      x-amazon-apigateway-authorizer:
+        authorizerUri: 
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${VehicleAuthorizerFunction.Arn}:${StageName}/invocations
+        authorizerResultTtlInSeconds: 300
+        identitySource: "method.request.header.X-Vin, method.request.header.X-Pin"
+        type: "request"
+        authorizerCredentials: 
+          Fn::Sub: ${LambdaInvocationRoleArn}

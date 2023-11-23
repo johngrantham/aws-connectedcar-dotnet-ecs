@@ -1,0 +1,48 @@
+version: 0.2
+env:
+  exported-variables:
+    - VERSION_NUMBER
+  secrets-manager:
+    TOKEN: "personal-access-token:token"    
+phases:
+  install:
+    runtime-versions:
+      dotnet: latest
+    commands:
+      - export PATH="$PATH:/root/.dotnet/tools"
+      - dotnet tool install -g Amazon.Lambda.Tools
+  pre_build:
+    commands:
+      - VERSION_NUMBER=$(date +"%Y%m%d-%H%M%S")
+      - ACCOUNT=$(echo $CODEBUILD_BUILD_ARN | cut -f5 -d ':')
+      # perform docker login against the AWS container registry
+      - aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${ACCOUNT}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
+      # add the connectedcar nuget sources
+      - dotnet nuget add source --username USERNAME --password ${TOKEN} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/johngranthamdev/index.json"
+  build:
+    commands:
+      # perform the docker build
+      - docker build --build-args TOKEN=${TOKEN} -t ${SERVICE_LOWER}-${ENVIRONMENT_LOWER} -f Dockerfile .
+      - docker tag ${SERVICE_LOWER}-${ENVIRONMENT_LOWER}\:latest ${ACCOUNT}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${SERVICE_LOWER}-${ENVIRONMENT_LOWER}\:latest
+      # build the lambda deployment package
+      - dotnet lambda package --configuration release --framework net6.0 -pl src/ConnectedCar.Lambda -o target/Lambda-${VERSION_NUMBER}.zip
+  post_build:
+    commands:
+      # push the docker image to the registry
+      - docker push ${ACCOUNT}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${SERVICE_LOWER}-${ENVIRONMENT_LOWER}\:latest
+      # upload the lambda package, openapi specifications and cloudformation templates to the S3 deployment bucket
+      - aws s3 rm --recursive s3://${BUCKET}/${SERVICE}/${ENVIRONMENT}
+      - aws s3 cp target/Lambda-${VERSION_NUMBER}.zip s3://${BUCKET}/${SERVICE}/${ENVIRONMENT}/Lambda-${VERSION_NUMBER}.zip
+      - cat deployment/specifications/admin.openapi.yaml deployment/specifications/schemas.openapi.yaml | aws s3 cp - s3://${BUCKET}/${SERVICE}/${ENVIRONMENT}/admin.openapi.yaml
+      - cat deployment/specifications/vehicle.openapi.yaml deployment/specifications/schemas.openapi.yaml | aws s3 cp - s3://${BUCKET}/${SERVICE}/${ENVIRONMENT}/vehicle.openapi.yaml
+      - cat deployment/specifications/customer.openapi.yaml deployment/specifications/schemas.openapi.yaml | aws s3 cp - s3://${BUCKET}/${SERVICE}/${ENVIRONMENT}/customer.openapi.yaml
+      - aws s3 cp deployment/templates/network.yaml s3://${BUCKET}/${SERVICE}/${ENVIRONMENT}/network.yaml
+      - aws s3 cp deployment/templates/services.yaml s3://${BUCKET}/${SERVICE}/${ENVIRONMENT}/services.yaml
+      - aws s3 cp deployment/templates/roles.yaml s3://${BUCKET}/${SERVICE}/${ENVIRONMENT}/roles.yaml
+      - aws s3 cp deployment/templates/containers.yaml s3://${BUCKET}/${SERVICE}/${ENVIRONMENT}/containers.yaml
+      - aws s3 cp deployment/templates/apis.yaml s3://${BUCKET}/${SERVICE}/${ENVIRONMENT}/apis.yaml
+      - aws s3 cp deployment/templates/master.yaml s3://${BUCKET}/${SERVICE}/${ENVIRONMENT}/master.yaml
+
+
+
+

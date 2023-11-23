@@ -1,0 +1,177 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'CloudFormation template for ECS resources.'
+Parameters:
+  ServiceName:
+    Type: String
+    Description: 'Specifies the name of the service e.g. ConnectedCar.'
+    Default: ConnectedCar
+  ServiceNameLower:
+    Type: String
+    Description: 'Specifies the name of the service e.g. ConnectedCar in lowercase.'
+    Default: connectedcar
+  EnvironmentName:
+    Type: String
+    Default: Dev
+    AllowedValues:
+      - Dev
+      - Test
+      - Prod
+    Description: 'Specifies the name of the environment (Dev,Test,Prod).'
+  EnvironmentNameLower:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: 'Specifies the name of the environment (dev,test,prod) in lowercase.'
+  UserQueueUrl:
+    Type: String
+    Description: 'Specifies the URN for the SQS user queue'
+  SubnetContainersA:
+    Type: String
+    Description: 'Specifies the ID of the subnet for AZ A in which containers are deployed'
+  SubnetContainersB:
+    Type: String
+    Description: 'Specifies the ID of the subnet for AZ B in which containers are deployed'
+  ContainerSecurityGroup:
+    Type: String
+    Description: 'Specifies the ID of the security groups attached to the container ENIs'
+  NetworkLoadBalancerTargetGroup:
+    Type: String
+    Description: 'Specifies the ARN of the Network Load Balancer Target Group used by the ECS service'
+  ContainerExecutionRoleArn:
+    Type: String
+    Description: 'Specifies the ARN of the container execution role.'
+  TaskExecutionRoleArn:
+    Type: String
+    Description: 'Specifies the ARN of the task execution role.'
+  AutoScaleRoleArn:
+    Type: String
+    Description: 'Specifies the ARN of the autoscale role.'
+  CpuArchitectureName:
+    Type: String
+    Default: X86_64
+    AllowedValues:
+      - X86_64
+      - ARM64
+    Description: 'Specifies whether the deployed containers are built for Intel or ARM CPU architectures'
+Resources:
+  LogsGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub '${ServiceName}_ContainerLogs_${EnvironmentName}'
+      RetentionInDays: 14
+  TaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '2048'
+      Memory: '4096'
+      RuntimePlatform:
+        CpuArchitecture: !Ref CpuArchitectureName
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      Family: !Sub '${ServiceName}_TaskDefinition_${EnvironmentName}'
+      ContainerDefinitions:
+        - Essential: true
+          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ServiceNameLower}-${EnvironmentNameLower}:latest'
+          Name: !Sub '${ServiceNameLower}-${EnvironmentNameLower}'
+          Environment:
+            - Name: DealerTableName
+              Value: !Sub '${ServiceName}_Dealer_Table_${EnvironmentName}'
+            - Name: TimeslotTableName 
+              Value: !Sub '${ServiceName}_Timeslot_Table_${EnvironmentName}'
+            - Name: AppointmentTableName
+              Value: !Sub '${ServiceName}_Appointment_Table_${EnvironmentName}'
+            - Name: RegistrationTableName
+              Value: !Sub '${ServiceName}_Registration_Table_${EnvironmentName}'
+            - Name: CustomerTableName
+              Value: !Sub '${ServiceName}_Customer_Table_${EnvironmentName}'
+            - Name: VehicleTableName
+              Value: !Sub '${ServiceName}_Vehicle_Table_${EnvironmentName}'
+            - Name: EventTableName 
+              Value: !Sub '${ServiceName}_Event_Table_${EnvironmentName}'
+            - Name: UserQueueUrl
+              Value: !Ref UserQueueUrl
+          PortMappings:
+            - ContainerPort: 5000
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogsGroup
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: !Sub '${ServiceNameLower}-${EnvironmentNameLower}'
+      TaskRoleArn: !Ref ContainerExecutionRoleArn
+      Tags: 
+        - Key: Name
+          Value: !Sub '${ServiceName}_TaskDefinition_${EnvironmentName}'
+    DependsOn: 
+      - LogsGroup
+  Cluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: !Sub '${ServiceName}_ECS_Cluster_${EnvironmentName}'
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled        
+  Service:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      Cluster: !Ref Cluster
+      ServiceName: !Sub '${ServiceName}_Service_${EnvironmentName}'
+      DeploymentConfiguration:
+        DeploymentCircuitBreaker: 
+          Enable: true
+          Rollback: true
+      DesiredCount: 2
+      HealthCheckGracePeriodSeconds: 60
+      LaunchType: FARGATE
+      LoadBalancers:
+        - ContainerName: !Sub '${ServiceNameLower}-${EnvironmentNameLower}'
+          ContainerPort: 5000
+          TargetGroupArn: !Ref NetworkLoadBalancerTargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - !Ref ContainerSecurityGroup
+          Subnets: 
+            - !Ref SubnetContainersA
+            - !Ref SubnetContainersB
+      TaskDefinition: !Ref TaskDefinition
+    DependsOn: 
+      - TaskDefinition
+      - Cluster
+  AutoScalingTarget:
+    Type: 'AWS::ApplicationAutoScaling::ScalableTarget'
+    Properties:
+      MaxCapacity: 8
+      MinCapacity: 2
+      ResourceId:
+        Fn::Join:
+        - "/"
+        - - service
+          - !Ref Cluster
+          - !GetAtt [Service, Name]
+      RoleARN: !Ref AutoScaleRoleArn
+      ScalableDimension: 'ecs:service:DesiredCount'
+      ServiceNamespace: ecs
+  TargetTrackingCPUPolicy:
+    Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+    Properties:
+      PolicyName: !Sub '${ServiceName}_ScalingPolicy_${EnvironmentName}'
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId:
+        Ref: AutoScalingTarget
+      ScalableDimension: 'ecs:service:DesiredCount'
+      ServiceNamespace: ecs
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 75.0
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
