@@ -18,7 +18,7 @@ phases:
       # perform docker login against the AWS container registry
       - aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${ACCOUNT}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
       # add the connectedcar nuget sources
-      - dotnet nuget add source --username USERNAME --password ${TOKEN} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/johngranthamdev/index.json"
+      - dotnet nuget add source --username USERNAME --password ${TOKEN} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/johngrantham/index.json"
   build:
     commands:
       # perform the docker build
