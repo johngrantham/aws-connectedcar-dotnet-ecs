@@ -2,8 +2,8 @@
 
 set -e
 
-workspacePath="/Users/Shared/Repos/aws-connectedcar-dotnet-ecs"
-bucket="connectedcar-deployment-205412"
+workspacePath="[enter base path]/aws-connectedcar-dotnet-ecs"
+bucket="[enter bucket name]"
 service="ConnectedCar"
 serviceLower="connectedcar"
 environment="Dev"
@@ -19,7 +19,7 @@ region=$(aws configure get region)
 
 cpu="ARM64"
 
-token="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"
+token="[enter token value]"
 
 echo " "
 echo "*************************************************************"

@@ -20,7 +20,7 @@ $region="[enter region code]"
 
 $cpu="X86_64"
 
-token="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"
+token="[enter token value]"
 
 Write-Host "*** Validating the config.ps1 variables ***"
 Write-Host " "
