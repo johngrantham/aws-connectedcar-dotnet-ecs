@@ -22,7 +22,7 @@ phases:
   build:
     commands:
       # perform the docker build
-      - docker build --build-args TOKEN=${TOKEN} -t ${SERVICE_LOWER}-${ENVIRONMENT_LOWER} -f Dockerfile .
+      - docker build --build-arg TOKEN=${TOKEN} -t ${SERVICE_LOWER}-${ENVIRONMENT_LOWER} -f Dockerfile .
       - docker tag ${SERVICE_LOWER}-${ENVIRONMENT_LOWER}\:latest ${ACCOUNT}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${SERVICE_LOWER}-${ENVIRONMENT_LOWER}\:latest
       # build the lambda deployment package
       - dotnet lambda package --configuration release --framework net6.0 -pl src/ConnectedCar.Lambda -o target/Lambda-${VERSION_NUMBER}.zip
