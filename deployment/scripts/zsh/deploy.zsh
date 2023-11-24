@@ -81,7 +81,7 @@ domain=$(aws cloudformation describe-stacks \
 
 aws cloudformation update-stack \
     --stack-name ${service}${environment} \
-    --template-body file://${workspacePath}/deployment/ecs/templates/master.yaml \
+    --template-body file://${workspacePath}/deployment/templates/master.yaml \
     --parameters ParameterKey=BucketName,ParameterValue=${bucket} \
                  ParameterKey=ServiceName,ParameterValue=${service} \
                  ParameterKey=ServiceNameLower,ParameterValue=${serviceLower} \
